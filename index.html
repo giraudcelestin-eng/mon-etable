@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#315b45">
+<title>Mon Étable</title>
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{--green:#315b45;--green2:#e8f0e9;--ink:#1d2922;--muted:#66736b;--line:#dce4dd;--bg:#f5f7f4;--white:#fff;--red:#a63d35;--amber:#94651c}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px system-ui,-apple-system,Segoe UI,sans-serif}
+header{background:var(--green);color:white;padding:18px 16px 20px;position:sticky;top:0;z-index:5;box-shadow:0 2px 8px #0001}
+.head{max-width:760px;margin:auto;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.brand{font-size:21px;font-weight:800;letter-spacing:.2px}.sub{font-size:12px;opacity:.82;margin-top:2px}
+main{max-width:760px;margin:0 auto;padding:18px 14px 90px}
+h1{font-size:24px;margin:4px 0 14px}h2{font-size:19px;margin:0 0 10px}h3{font-size:16px;margin:0}
+.muted{color:var(--muted);font-size:13px}.row{display:flex;align-items:center;justify-content:space-between;gap:10px}.stack{display:grid;gap:12px}
+.card{background:var(--white);border:1px solid var(--line);border-radius:16px;padding:15px;box-shadow:0 1px 3px #162b1c08}
+.card.click{cursor:pointer}.card.click:active,button:active{transform:scale(.99)}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.stat{background:var(--green2);border-radius:12px;padding:10px}.stat b{display:block;font-size:21px}
+button,.button{border:0;border-radius:12px;padding:12px 14px;background:var(--green);color:white;font:600 14px system-ui;cursor:pointer}
+button.secondary{background:#edf1ed;color:var(--ink);border:1px solid var(--line)}
+button.danger{background:#f8e9e7;color:var(--red)}button.small{padding:8px 10px;font-size:12px}
+button:disabled{opacity:.45;cursor:not-allowed}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+input,select{width:100%;border:1px solid #cbd6cd;border-radius:11px;padding:12px;font:16px system-ui;background:white;color:var(--ink)}
+label{display:grid;gap:6px;font-size:13px;font-weight:650}
+.form{display:grid;gap:12px}.toolbar{display:flex;gap:8px;align-items:center;margin-bottom:14px}.toolbar input{flex:1}
+.pill{display:inline-flex;align-items:center;border-radius:99px;background:#edf2ed;padding:5px 9px;font-size:12px;font-weight:700;color:var(--green)}
+.pill.full{background:#f8e9e7;color:var(--red)}.pill.warn{background:#fff3dc;color:var(--amber)}
+.animal{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 0;border-top:1px solid var(--line)}
+.animal:first-child{border-top:0}.animal-id{font-size:19px;font-weight:800;letter-spacing:1px}.animal-meta{font-size:12px;color:var(--muted)}
+.back{background:transparent;color:white;padding:7px 8px;font-size:14px}
+.empty{text-align:center;padding:28px 14px;color:var(--muted)}.empty strong{display:block;color:var(--ink);margin-bottom:5px}
+dialog{border:0;border-radius:18px;padding:0;width:min(92vw,480px);max-height:88vh;box-shadow:0 18px 60px #0004}
+dialog::backdrop{background:#10201588}.modal{padding:19px;max-height:88vh;overflow:auto}.modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.modal-head h2{margin:0}.close{background:#edf1ed;color:var(--ink);padding:7px 11px}
+footer{max-width:760px;margin:0 auto;padding:0 14px 24px;color:var(--muted);font-size:11px;text-align:center}
+.notice{background:#fff6e6;border:1px solid #f0dfb8;padding:11px;border-radius:12px;font-size:13px}
+.hidden{display:none!important}
+@media(min-width:560px){main{padding-top:24px}.grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+</style>
+</head>
+<body>
+<header><div class="head"><div><div class="brand">🐄 Mon Étable</div><div class="sub">Gestion simple de tes bâtiments et bovins</div></div><button class="back hidden" id="homeBtn" type="button">← Bâtiments</button></div></header>
+<main id="app"></main>
+<footer>Les données sont enregistrées sur cet appareil. Pense à faire régulièrement une sauvegarde.</footer>
+<dialog id="dlg"><div class="modal"><div class="modal-head"><h2 id="dlgTitle"></h2><button class="close" id="dlgClose" type="button">✕</button></div><div id="dlgBody"></div></div></dialog>
+<script>
+const KEY='mon-etable-data-v1';
+const emptyData=()=>({buildings:[],history:[]});
+let data=load(), currentBuilding=null, currentCase=null, searchTerm='';
+function load(){try{const d=JSON.parse(localStorage.getItem(KEY))||emptyData();if(!Array.isArray(d.buildings))d.buildings=[];if(!Array.isArray(d.history))d.history=[];d.buildings.forEach(b=>{if(!Array.isArray(b.cases))b.cases=[];b.cases.forEach(c=>{if(!Array.isArray(c.animals))c.animals=[]})});return d}catch{return emptyData()}}
+function save(){localStorage.setItem(KEY,JSON.stringify(data))}
+function uid(){return crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random()}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function allAnimals(){return data.buildings.flatMap(b=>b.cases.flatMap(c=>c.animals.map(a=>({...a,buildingId:b.id,caseId:c.id,buildingName:b.name,caseName:c.name}))))}
+function building(id){return data.buildings.find(x=>x.id===id)}
+function caseById(b,id){return b?.cases.find(x=>x.id===id)}
+function animalCount(c){return c.animals.length}
+function capacityLabel(c){return `${animalCount(c)} / ${c.capacity} places`}
+function openModal(title,html){document.getElementById('dlgTitle').textContent=title;document.getElementById('dlgBody').innerHTML=html;document.getElementById('dlg').showModal()}
+function closeModal(){document.getElementById('dlg').close()}
+document.getElementById('dlgClose').onclick=closeModal;
+document.getElementById('homeBtn').onclick=()=>{currentBuilding=null;currentCase=null;render()};
+function render(){
+ const app=document.getElementById('app'), homeBtn=document.getElementById('homeBtn');
+ homeBtn.classList.toggle('hidden',!currentBuilding);
+ if(!currentBuilding){renderBuildings(app);return}
+ const b=building(currentBuilding);if(!b){currentBuilding=null;render();return}
+ if(currentCase){const c=caseById(b,currentCase);if(!c){currentCase=null;render();return}renderCase(app,b,c)}
+ else renderBuilding(app,b);
+}
+function renderBuildings(app){
+ const total=allAnimals().length;
+ const animals=allAnimals(), cows=animals.filter(a=>a.type==='cow').length, calves=animals.filter(a=>a.type==='calf').length;
+ const capacity=data.buildings.reduce((sum,b)=>sum+b.cases.reduce((s,c)=>s+c.capacity,0),0);
+ const used=data.buildings.reduce((sum,b)=>sum+b.cases.reduce((s,c)=>s+c.animals.length,0),0);
+ const recent=(data.history||[]).slice().sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,5);
+ app.innerHTML=`<div class="row"><div><h1>Tableau de bord</h1><div class="muted">Vue d'ensemble de ton exploitation</div></div><button id="addBuilding">＋ Bâtiment</button></div>
+ <div class="grid" style="margin:14px 0"><div class="stat"><span class="muted">Bovins</span><b>${total}</b></div><div class="stat"><span class="muted">Vaches</span><b>${cows}</b></div><div class="stat"><span class="muted">Veaux</span><b>${calves}</b></div><div class="stat"><span class="muted">Bâtiments</span><b>${data.buildings.length}</b></div><div class="stat"><span class="muted">Cases</span><b>${data.buildings.reduce((s,b)=>s+b.cases.length,0)}</b></div><div class="stat"><span class="muted">Places libres</span><b>${Math.max(0,capacity-used)}</b></div></div>
+ <div class="card"><div class="row"><h3>Occupation des places</h3><span class="pill">${used} / ${capacity}</span></div><div style="height:10px;background:#edf1ed;border-radius:99px;overflow:hidden;margin-top:10px"><div style="height:100%;width:${capacity?Math.min(100,used/capacity*100):0}%;background:var(--green);border-radius:99px"></div></div><div class="muted" style="margin-top:6px">${capacity?Math.round(used/capacity*100):0}% des places occupées</div></div>
+ <div class="stack" style="margin-top:16px">${data.buildings.length?data.buildings.map(b=>{
+ const n=b.cases.reduce((s,c)=>s+c.animals.length,0),cap=b.cases.reduce((s,c)=>s+c.capacity,0);
+ return `<div class="card click" data-building="${b.id}"><div class="row"><h2>🏠 ${esc(b.name)}</h2><span class="pill">${b.cases.length} cases</span></div><div class="muted">${n} bovin(s) · ${cap} places au total</div><div class="actions"><button class="secondary small" data-edit-building="${b.id}">Modifier</button></div></div>`
+ }).join(''):`<div class="card empty"><strong>Aucun bâtiment pour le moment</strong>Ajoute ta première stabulation pour commencer.</div>`}</div>
+ <div class="card" style="margin-top:16px"><div class="row"><h3>↔ Derniers déplacements</h3><button class="secondary small" id="allHistory">Tout voir</button></div>${recent.length?recent.map(h=>`<div class="animal"><div><b>${esc(h.animalId)}</b><div class="animal-meta">${esc(h.fromBuilding)} / ${esc(h.fromCase)} → ${esc(h.toBuilding)} / ${esc(h.toCase)}</div><div class="animal-meta">${formatDate(h.date)}</div></div></div>`).join(''):'<div class="muted" style="padding-top:10px">Aucun déplacement enregistré pour le moment.</div>'}</div>
+ <div class="card" style="margin-top:16px"><h3>🔎 Retrouver un bovin</h3><div class="muted" style="margin:5px 0 10px">Recherche dans tous les bâtiments et toutes les cases avec les 4 chiffres d'identification.</div><div class="toolbar" style="margin:0"><input id="globalSearch" inputmode="numeric" maxlength="4" placeholder="Ex. 0123"><button id="globalSearchBtn">Chercher</button></div><div id="globalResults"></div></div>
+ <div class="card" style="margin-top:16px"><h3>💾 Sauvegarde des données</h3><div class="muted" style="margin:5px 0 10px">Exporte une copie de ton inventaire ou restaure une sauvegarde précédente.</div><div class="actions"><button class="secondary" id="exportBtn">Exporter mes données</button><button class="secondary" id="importBtn">Importer une sauvegarde</button></div></div>`;
+ document.getElementById('addBuilding').onclick=()=>buildingForm();
+ app.querySelectorAll('[data-building]').forEach(el=>el.onclick=(e)=>{if(e.target.closest('button'))return;currentBuilding=el.dataset.building;render()});
+ app.querySelectorAll('[data-edit-building]').forEach(el=>el.onclick=()=>buildingForm(building(el.dataset.editBuilding)));
+ document.getElementById('allHistory').onclick=showAllHistory;
+ document.getElementById('exportBtn').onclick=exportData;
+ document.getElementById('importBtn').onclick=importData;
+ const globalInput=document.getElementById('globalSearch');
+ const runGlobalSearch=()=>{
+   const q=globalInput.value.replace(/\\D/g,'').slice(0,4);
+   const results=document.getElementById('globalResults');
+   if(!q){results.innerHTML='';return}
+   const matches=allAnimals().filter(a=>a.id.includes(q));
+   results.innerHTML=matches.length?matches.map(a=>`<div class="animal"><div><div class="animal-id">${esc(a.id)}</div><div class="animal-meta">${a.type==='cow'?'Vache':'Veau'} · ${esc(a.buildingName)} / ${esc(a.caseName)}${a.motherId?` · mère ${esc(a.motherId)}`:''}</div></div><div class="actions" style="margin:0"><button class="secondary small" data-fiche-global="${a.id}">Fiche</button><button class="secondary small" data-goto-animal="${a.buildingId}|${a.caseId}">Voir</button></div></div>`).join(''):'<div class="muted" style="padding:10px 0">Aucun bovin trouvé.</div>';
+   results.querySelectorAll('[data-fiche-global]').forEach(btn=>btn.onclick=()=>showAnimalFiche(btn.dataset.ficheGlobal));
+   results.querySelectorAll('[data-goto-animal]').forEach(btn=>btn.onclick=()=>{const [bid,cid]=btn.dataset.gotoAnimal.split('|');currentBuilding=bid;currentCase=cid;searchTerm='';render()});
+ };
+ document.getElementById('globalSearchBtn').onclick=runGlobalSearch;
+ globalInput.oninput=runGlobalSearch;
+}
+function renderBuilding(app,b){
+ const total=b.cases.reduce((s,c)=>s+c.animals.length,0),cap=b.cases.reduce((s,c)=>s+c.capacity,0);
+ app.innerHTML=`<div class="row"><div><h1>${esc(b.name)}</h1><div class="muted">${b.cases.length} case(s) · ${total}/${cap} places occupées</div></div><button id="addCase">＋ Case</button></div>
+ <div class="grid" style="margin:14px 0"><div class="stat"><span class="muted">Vaches</span><b>${b.cases.reduce((s,c)=>s+c.animals.filter(a=>a.type==='cow').length,0)}</b></div><div class="stat"><span class="muted">Veaux</span><b>${b.cases.reduce((s,c)=>s+c.animals.filter(a=>a.type==='calf').length,0)}</b></div><div class="stat"><span class="muted">Places libres</span><b>${Math.max(0,cap-total)}</b></div></div>
+ <div class="stack">${b.cases.length?b.cases.map(c=>`<div class="card click" data-case="${c.id}"><div class="row"><h2>▦ ${esc(c.name)}</h2><span class="pill ${c.animals.length>=c.capacity?'full':''}">${capacityLabel(c)}</span></div><div class="muted">${c.animals.filter(a=>a.type==='cow').length} vache(s) · ${c.animals.filter(a=>a.type==='calf').length} veau(x)</div><div class="actions"><button class="secondary small" data-edit-case="${c.id}">Modifier la case</button></div></div>`).join(''):`<div class="card empty"><strong>Aucune case dans ce bâtiment</strong>Ajoute une case et indique sa capacité.</div>`}</div>
+ <div class="actions"><button class="secondary" id="editBuilding">Modifier le bâtiment</button><button class="danger small" id="deleteBuilding">Supprimer le bâtiment</button></div>`;
+ document.getElementById('addCase').onclick=()=>caseForm(b);
+ document.getElementById('editBuilding').onclick=()=>buildingForm(b);
+ document.getElementById('deleteBuilding').onclick=()=>{if(confirm('Supprimer ce bâtiment et tous les animaux qu’il contient ?')){data.buildings=data.buildings.filter(x=>x.id!==b.id);save();currentBuilding=null;render()}};
+ app.querySelectorAll('[data-case]').forEach(el=>el.onclick=e=>{if(e.target.closest('button'))return;currentCase=el.dataset.case;render()});
+ app.querySelectorAll('[data-edit-case]').forEach(el=>el.onclick=()=>caseForm(b,caseById(b,el.dataset.editCase)));
+}
+function renderCase(app,b,c){
+ const cows=c.animals.filter(a=>a.type==='cow'),calves=c.animals.filter(a=>a.type==='calf');
+ const q=searchTerm.trim();
+ const filtered=(arr)=>arr.filter(a=>!q||a.id.includes(q)||((a.motherId||'').includes(q)));
+ const animalRows=(arr)=>filtered(arr).map(a=>`<div class="animal"><div><div class="animal-id">${esc(a.id)}</div><div class="animal-meta">${a.type==='cow'?'Vache':`Veau${a.motherId?` · mère : ${esc(a.motherId)}`:' · sans mère associée'}`}</div></div><div class="actions" style="margin:0"><button class="secondary small" data-fiche="${a.id}">Fiche</button><button class="secondary small" data-move="${a.id}">Déplacer</button><button class="secondary small" data-edit-animal="${a.id}">Modifier</button></div></div>`).join('')||`<div class="muted" style="padding:10px 0">Aucun animal dans cette liste.</div>`;
+ app.innerHTML=`<div class="row"><div><h1>${esc(c.name)}</h1><div class="muted">${esc(b.name)} · ${capacityLabel(c)}</div></div><button id="addAnimal">＋ Animal</button></div>
+ <div class="grid" style="margin:14px 0"><div class="stat"><span class="muted">Vaches</span><b>${cows.length}</b></div><div class="stat"><span class="muted">Veaux</span><b>${calves.length}</b></div><div class="stat"><span class="muted">Places libres</span><b>${Math.max(0,c.capacity-c.animals.length)}</b></div></div>
+ <div class="toolbar"><input id="search" inputmode="numeric" maxlength="4" placeholder="Rechercher un numéro à 4 chiffres…" value="${esc(searchTerm)}"></div>
+ <div class="card"><div class="row"><h2>🐄 Vaches</h2><span class="pill">${cows.length}</span></div>${animalRows(cows)}</div>
+ <div class="card" style="margin-top:12px"><div class="row"><h2>🐮 Veaux</h2><span class="pill">${calves.length}</span></div>${animalRows(calves)}</div>
+ <div class="actions"><button class="secondary" id="editCase">Modifier la case</button><button class="danger small" id="deleteCase">Supprimer la case</button></div>`;
+ document.getElementById('addAnimal').onclick=()=>animalForm(b,c);
+ document.getElementById('search').oninput=e=>{searchTerm=e.target.value.replace(/\\D/g,'').slice(0,4);const pos=e.target.selectionStart;render();const el=document.getElementById('search');el.focus();el.setSelectionRange(pos,pos)};
+ document.getElementById('editCase').onclick=()=>caseForm(b,c);
+ document.getElementById('deleteCase').onclick=()=>{if(c.animals.length){alert('Déplace ou supprime les animaux avant de supprimer cette case.');return}if(confirm('Supprimer cette case ?')){b.cases=b.cases.filter(x=>x.id!==c.id);save();currentCase=null;render()}};
+ app.querySelectorAll('[data-fiche]').forEach(el=>el.onclick=()=>showAnimalFiche(el.dataset.fiche));
+ app.querySelectorAll('[data-move]').forEach(el=>el.onclick=()=>moveAnimal(b,c,el.dataset.move));
+ app.querySelectorAll('[data-edit-animal]').forEach(el=>el.onclick=()=>animalForm(b,c,c.animals.find(a=>a.id===el.dataset.editAnimal)));
+}
+function buildingForm(b=null){
+ openModal(b?'Modifier le bâtiment':'Nouveau bâtiment',`<form class="form" id="buildingForm"><label>Nom du bâtiment<input name="name" required maxlength="45" placeholder="Ex. Stabulation principale" value="${esc(b?.name||'')}"></label><div class="actions"><button type="submit">${b?'Enregistrer':'Créer le bâtiment'}</button></div></form>`);
+ document.getElementById('buildingForm').onsubmit=e=>{e.preventDefault();const name=new FormData(e.target).get('name').trim();if(b)b.name=name;else data.buildings.push({id:uid(),name,cases:[]});save();closeModal();render()};
+}
+function caseForm(b,c=null){
+ openModal(c?'Modifier la case':'Nouvelle case',`<form class="form" id="caseForm"><label>Nom de la case<input name="name" required maxlength="45" placeholder="Ex. Case 1" value="${esc(c?.name||`Case ${b.cases.length+1}`)}"></label><label>Nombre de places<input name="capacity" type="number" min="${c?.animals.length||1}" max="999" required value="${c?.capacity??8}"></label><div class="actions"><button type="submit">Enregistrer</button></div></form>`);
+ document.getElementById('caseForm').onsubmit=e=>{e.preventDefault();const f=new FormData(e.target),name=f.get('name').trim(),capacity=Number(f.get('capacity'));if(c){c.name=name;c.capacity=capacity}else b.cases.push({id:uid(),name,capacity,animals:[]});save();closeModal();render()};
+}
+function animalForm(b,c,a=null){
+ const isCalf=a?.type==='calf';
+ const cows=allAnimals().filter(x=>x.type==='cow'&&x.id!==a?.id);
+ const motherOptions=`<option value="">Aucune mère associée</option>`+cows.map(x=>`<option value="${x.id}" ${a?.motherId===x.id?'selected':''}>${x.id} — ${esc(x.buildingName)} / ${esc(x.caseName)}</option>`).join('');
+ openModal(a?'Modifier le bovin':'Ajouter un bovin',`<form class="form" id="animalForm">
+ <label>Type d'animal<select name="type"><option value="cow" ${!isCalf?'selected':''}>Vache</option><option value="calf" ${isCalf?'selected':''}>Veau</option></select></label>
+ <label>Numéro d'identification (4 chiffres)<input name="id" required inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" placeholder="Ex. 0123" value="${esc(a?.id||'')}"></label>
+ <label id="motherWrap">Mère (facultatif)<select name="motherId">${motherOptions}</select></label>
+ <div class="muted">Tu peux laisser le veau indépendant ou sélectionner sa mère. Le numéro doit comporter exactement 4 chiffres, y compris les zéros au début.</div>
+ <div class="actions"><button type="submit">Enregistrer</button>${a?'<button type="button" class="danger" id="deleteAnimal">Supprimer</button>':''}</div></form>`);
+ const form=document.getElementById('animalForm'),typeEl=form.elements.type,motherWrap=document.getElementById('motherWrap');
+ function updateMother(){motherWrap.classList.toggle('hidden',typeEl.value!=='calf')}
+ typeEl.onchange=updateMother;updateMother();
+ form.onsubmit=e=>{e.preventDefault();const f=new FormData(form),type=f.get('type'),id=f.get('id');if(!/^\\d{4}$/.test(id)){alert('Le numéro doit contenir exactement 4 chiffres.');return}
+ const duplicate=allAnimals().find(x=>x.id===id&&x.id!==a?.id);if(duplicate){alert('Ce numéro est déjà utilisé par un autre bovin.');return}
+ if(!a&&c.animals.length>=c.capacity){alert('Cette case est pleine. Augmente sa capacité ou choisis une autre case.');return}
+ const motherId=type==='calf'?(f.get('motherId')||null):null;
+ if(motherId===id){alert('Un veau ne peut pas être sa propre mère.');return}
+ if(motherId&&!allAnimals().some(x=>x.id===motherId&&x.type==='cow')){alert('La mère sélectionnée doit être une vache présente dans l’inventaire.');return}
+ const previousType=a?.type;
+ if(a){a.id=id;a.type=type;a.motherId=motherId}else c.animals.push({id,type,motherId});
+ // A bovin qui n'est plus une vache ne peut plus rester la mère associée d'un veau.
+ if(a&&previousType==='cow'&&type!=='cow') data.buildings.forEach(bb=>bb.cases.forEach(cc=>cc.animals.forEach(x=>{if(x.motherId===id)x.motherId=null})));
+ save();closeModal();render()};
+ if(a)document.getElementById('deleteAnimal').onclick=()=>{if(confirm(`Supprimer le bovin ${a.id} ?`)){const old=a.id;c.animals=c.animals.filter(x=>x!==a);data.buildings.forEach(bb=>bb.cases.forEach(cc=>cc.animals.forEach(x=>{if(x.motherId===old)x.motherId=null})));save();closeModal();render()}};
+}
+function moveAnimal(b,c,id){
+ const animal=c.animals.find(a=>a.id===id);
+ const destinations=data.buildings.flatMap(bb=>bb.cases.filter(cc=>!(bb.id===b.id&&cc.id===c.id)).map(cc=>({building:bb,case:cc})));
+ if(!destinations.length){alert('Ajoute au moins une autre case dans ton inventaire pour pouvoir déplacer cet animal.');return}
+ openModal(`Déplacer ${id}`,`<form class="form" id="moveForm"><label>Bâtiment de destination<select name="building" id="moveBuilding">${data.buildings.map(bb=>`<option value="${bb.id}">${esc(bb.name)}</option>`).join('')}</select></label><label>Case de destination<select name="target" id="moveTarget"></select></label><div class="muted">Les cases complètes ne sont pas proposées. Le numéro d'identification et le lien mère/veau sont conservés.</div><div class="actions"><button type="submit">Déplacer le bovin</button></div></form>`);
+ const buildingSelect=document.getElementById('moveBuilding'),targetSelect=document.getElementById('moveTarget');
+ function fillTargets(){
+   const destBuilding=building(buildingSelect.value);
+   const eligible=destBuilding.cases.filter(cc=>!(destBuilding.id===b.id&&cc.id===c.id)&&cc.animals.length<cc.capacity);
+   targetSelect.innerHTML=eligible.map(cc=>`<option value="${cc.id}">${esc(cc.name)} — ${cc.animals.length}/${cc.capacity} places libres</option>`).join('');
+   if(!eligible.length)targetSelect.innerHTML='<option value="">Aucune case disponible dans ce bâtiment</option>';
+ }
+ buildingSelect.onchange=fillTargets;fillTargets();
+ document.getElementById('moveForm').onsubmit=e=>{
+   e.preventDefault();
+   const destBuilding=building(buildingSelect.value),target=caseById(destBuilding,targetSelect.value);
+   if(!target||target.animals.length>=target.capacity){alert('Choisis une case qui dispose encore de place.');return}
+   const movement={id:uid(),animalId:animal.id,animalType:animal.type,date:new Date().toISOString(),fromBuilding:b.name,fromCase:c.name,toBuilding:destBuilding.name,toCase:target.name,fromBuildingId:b.id,fromCaseId:c.id,toBuildingId:destBuilding.id,toCaseId:target.id};
+   c.animals=c.animals.filter(x=>x!==animal);target.animals.push(animal);
+   if(!Array.isArray(data.history))data.history=[];data.history.push(movement);
+   save();closeModal();currentBuilding=destBuilding.id;currentCase=target.id;render();
+ };
+}
+function formatDate(value){
+ const d=new Date(value);if(Number.isNaN(d.getTime()))return 'Date inconnue';
+ return d.toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'});
+}
+function showAnimalFiche(id){
+ const a=allAnimals().find(x=>x.id===id);if(!a){alert('Bovin introuvable.');return}
+ const calves=allAnimals().filter(x=>x.type==='calf'&&x.motherId===id);
+ const mother=a.motherId?allAnimals().find(x=>x.id===a.motherId&&x.type==='cow'):null;
+ const moves=(data.history||[]).filter(h=>h.animalId===id).sort((x,y)=>new Date(y.date)-new Date(x.date));
+ openModal(`Fiche bovin · ${a.id}`,`<div class="stack">
+ <div class="grid"><div class="stat"><span class="muted">Identification</span><b>${esc(a.id)}</b></div><div class="stat"><span class="muted">Type</span><b>${a.type==='cow'?'Vache':'Veau'}</b></div></div>
+ <div class="card"><h3>📍 Emplacement actuel</h3><div style="margin-top:7px"><b>${esc(a.buildingName)}</b><div class="muted">${esc(a.caseName)}</div></div></div>
+ ${a.type==='calf'?`<div class="card"><h3>🐄 Mère</h3><div style="margin-top:7px">${mother?`N° ${esc(mother.id)}`:'Aucune mère associée'}</div></div>`:`<div class="card"><h3>🐮 Veaux associés (${calves.length})</h3><div style="margin-top:7px">${calves.length?calves.map(x=>`<div class="animal-id">${esc(x.id)}</div>`).join(''):'<span class="muted">Aucun veau associé</span>'}</div></div>`}
+ <div class="card"><div class="row"><h3>↔ Historique des déplacements</h3><span class="pill">${moves.length}</span></div>${moves.length?moves.map(h=>`<div class="animal"><div><b>${esc(h.fromBuilding)} / ${esc(h.fromCase)}</b><div class="muted">→ ${esc(h.toBuilding)} / ${esc(h.toCase)}</div><div class="animal-meta">${formatDate(h.date)}</div></div></div>`).join(''):'<div class="muted" style="padding-top:8px">Aucun déplacement enregistré.</div>'}</div>
+ <div class="actions"><button id="ficheEdit">Modifier le bovin</button><button class="secondary" id="ficheMove">Déplacer</button></div></div>`);
+ document.getElementById('ficheEdit').onclick=()=>{closeModal();const bb=building(a.buildingId),cc=caseById(bb,a.caseId);animalForm(bb,cc,cc.animals.find(x=>x.id===id))};
+ document.getElementById('ficheMove').onclick=()=>{closeModal();const bb=building(a.buildingId),cc=caseById(bb,a.caseId);currentBuilding=bb.id;currentCase=cc.id;moveAnimal(bb,cc,id)};
+}
+function showAllHistory(){
+ const entries=(data.history||[]).slice().sort((a,b)=>new Date(b.date)-new Date(a.date));
+ openModal('Historique des déplacements',entries.length?`<div class="stack">${entries.map(h=>`<div class="card"><div class="row"><b>Bovin ${esc(h.animalId)}</b><span class="pill">${h.animalType==='cow'?'Vache':'Veau'}</span></div><div style="margin-top:8px">${esc(h.fromBuilding)} / ${esc(h.fromCase)}<br>↓<br>${esc(h.toBuilding)} / ${esc(h.toCase)}</div><div class="animal-meta" style="margin-top:7px">${formatDate(h.date)}</div></div>`).join('')}</div>`:'<div class="empty"><strong>Aucun déplacement</strong>L’historique apparaîtra ici après les premiers mouvements.</div>');
+}
+function exportData(){
+ const blob=new Blob([JSON.stringify({format:'mon-etable',version:2,exportedAt:new Date().toISOString(),data},null,2)],{type:'application/json'});
+ const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='sauvegarde-mon-etable.json';a.click();URL.revokeObjectURL(url);
+}
+function importData(){
+ openModal('Importer une sauvegarde',`<div class="form"><p class="muted">Choisis un fichier JSON exporté depuis Mon Étable. L'import remplacera les données présentes sur cet appareil.</p><label>Fichier de sauvegarde<input type="file" id="backupFile" accept=".json,application/json"></label><button id="doImport">Importer et remplacer les données</button></div>`);
+ document.getElementById('doImport').onclick=async()=>{const file=document.getElementById('backupFile').files[0];if(!file){alert('Choisis un fichier.');return}try{const obj=JSON.parse(await file.text()),incoming=obj.data;if(obj.format!=='mon-etable'||!Array.isArray(incoming?.buildings))throw Error();if(!confirm('Remplacer toutes les données actuelles ?'))return;data=incoming;if(!Array.isArray(data.history))data.history=[];save();currentBuilding=null;currentCase=null;closeModal();render()}catch{alert('Fichier invalide ou non reconnu.')}};
+}
+render();
+if('serviceWorker' in navigator && location.protocol!=='file:'){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}))}
+</script>
+</body></html>

@@ -1,0 +1,11 @@
+{
+  "name": "Mon Étable",
+  "short_name": "Mon Étable",
+  "description": "Gestion personnelle des bâtiments, cases et bovins",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f5f7f4",
+  "theme_color": "#315b45",
+  "lang": "fr",
+  "icons": []
+}
